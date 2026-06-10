@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<robot name="quadruped_nominal">
+  <!-- Base Link -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+      <mass value="12.0"/>
+      <inertia ixx="0.15" ixy="0.0" ixz="0.0" iyy="0.25" iyz="0.0" izz="0.30"/>
+    </inertial>
+    <visual>
+      <geometry>
+        <box size="0.5 0.3 0.1"/>
+      </geometry>
+    </visual>
+  </link>
+
+  <!-- Hip Yaw Link -->
+  <link name="hip_yaw_link">
+    <inertial>
+      <origin xyz="0.01 0.02 -0.01" rpy="0 0 0"/>
+      <mass value="0.85"/>
+      <inertia ixx="0.0012" ixy="0.0" ixz="0.0" iyy="0.0015" iyz="0.0" izz="0.0018"/>
+    </inertial>
+  </link>
+
+  <!-- Upper Leg Link -->
+  <link name="upper_leg_link">
+    <inertial>
+      <origin xyz="0.0 0.0 -0.12" rpy="0 0 0"/>
+      <mass value="1.25"/>
+      <!-- Perfectly valid ellipsoid inertia -->
+      <inertia ixx="0.0125" ixy="0.0001" ixz="0.0002" iyy="0.0128" iyz="0.0001" izz="0.0022"/>
+    </inertial>
+  </link>
+</robot>

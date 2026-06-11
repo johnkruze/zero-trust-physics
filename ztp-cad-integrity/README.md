@@ -109,3 +109,15 @@ The resulting file retains all original geometry and kinematic chains, but repla
 ==========================================================================
 -->
 ```
+
+---
+
+## Case Study: Full Mathematical Breakdown
+
+[**→ ZTP CAD Ingestion Gate Showcase**](samples/ingestion_gate_showcase.md)
+
+Step-by-step walkthrough of the SLSQP projection executing on a corrupted quadruped model — three specific CAD export failures, the exact optimization math, the repaired output, and the cryptographic seal.
+
+---
+
+Part of the [Zero-Trust Physics](https://github.com/johnkruze/zero-trust-physics) suite · [ZeroTrustPhysics.com](https://ZeroTrustPhysics.com)

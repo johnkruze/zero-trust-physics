@@ -55,3 +55,16 @@ python3 marine_firewall.py
 1. **Nominal Cruise ($t=0.0\text{s} - 20.0\text{s}$):** UUV cruises at 1500m depth, maintaining stable speed (1.5 m/s).
 2. **DVL Bottom-Lock Loss ($t=20.0\text{s}$):** DVL loses bottom-lock. The navigation filter begins drifting.
 3. **ZTP Protected Audit:** At $t=20.0\text{s}$, the firewall flags a force violation of $\mathcal{I}(t) = 1.064\text{ g} > 0.15\text{ g}$. It switches to emergency ballast override, expels water, pitches up, and safely ascends to $492\text{m}$.
+
+
+---
+
+## Deep-Water Failure Mode Analysis
+
+[**→ Deep-Water Robotics Substrate Dossier**](deep_water_substrate_dossier.md)
+
+Four documented UUV/USV catastrophic failure modes with full physics derivations: acoustic shadow refraction collision, propeller cavitation self-deafening, abyssal seal stiction windup, and AI-induced hydrofoil nose-dive. Plus the force-balance audit architecture.
+
+---
+
+Part of the [Zero-Trust Physics](https://github.com/johnkruze/zero-trust-physics) suite · [ZeroTrustPhysics.com](https://ZeroTrustPhysics.com)

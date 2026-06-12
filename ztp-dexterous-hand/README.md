@@ -176,4 +176,20 @@ Every simulation run generates a cryptographic proof sealed by **Aegis OS**. The
 * **Sovereignty Seal (SHA256)**: `ea0fd0d7c71d6f1f4405a3064619a9b71a2e9cb72b38f8702c2e0a02ef496b7a`
 * **ICP Mainnet Registry**: Verification is anchored to the Internet Computer protocol ledger (when `AEGIS_NETWORK=ic`).
 
-For the FFI Rust headers and Python bindings, visit the [Zero Trust Physics GitHub repository](https://github.com/ZeroTrustPhysics/Spectrum/tree/main/ztp-dexterous-hand).
+For FFI Rust headers and Python bindings, see [ztp-runtime](https://github.com/johnkruze/ztp-runtime) and [genesis-core](https://github.com/johnkruze/genesis-core).
+
+---
+
+## Extensions: Surgical & Micro-Manufacturing
+
+The dexterous hand physics extends into two adjacent domains via `surgical_micro_test.py`:
+
+**Surgical Tissue Compliance (`ztp_surgical_evaluate_grasp`)**
+ZTP auditor for force-controlled surgical grippers. Enforces tissue-type force ceilings (liver: 1.2 N, bowel: 2.5 N, bone: 40 N), detects viscoelastic rupture via stiffness collapse during active compression, and flags cable slip faults. When tissue rupture is detected, ZTP halts gripper motion immediately — the force limit is a physical invariant, not a software command.
+
+**Micro-Manufacturing Release (`ztp_micro_evaluate_release`)**
+Capillary stiction auditor for micro-assembly pick-and-place. Detects liquid bridge stiction holding micro-parts (μg mass) to gripper jaws after jaw opening, dispatches piezo shake command to break the capillary bridge, and gates arm retraction until safe-to-retract is confirmed. Electrostatic charge violation (>150 V) is independently monitored for ESD protection.
+
+```bash
+python3 surgical_micro_test.py
+```

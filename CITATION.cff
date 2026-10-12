@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use Zero-Trust Physics, or anything in this repository, please cite the paper."
+title: "Zero-Trust Physics"
+abstract: "Zero-Trust Physics is a physics verifier for Super Intelligence (SI). SI agents ask it questions about real hardware over the Model Context Protocol, and every answer comes with a cryptographic proof, so any agent can run it again and get the same thing; when a question goes past what a model was tested for, the answer stops there and says why. This repository holds three small programs that confirm a cryptographic proof with no engine, and examples of asking."
+type: software
+authors:
+  - family-names: Kruze
+    given-names: John
+    affiliation: Protocol Company
+    email: kruze@zerotrustphysics.com
+url: "https://zerotrustphysics.com"
+repository-code: "https://github.com/johnkruze/zero-trust-physics"
+license: Apache-2.0
+keywords:
+  - Zero-Trust Physics
+  - Super Intelligence
+  - SI agents
+  - physics verifier
+  - Model Context Protocol
+  - cryptographic proof
+  - validation against measurement
+preferred-citation:
+  type: article
+  title: "Zero-Trust Physics: a verifier for the physical answers of Super Intelligence"
+  authors:
+    - family-names: Kruze
+      given-names: John
+      affiliation: Protocol Company
+  year: 2026
+  month: 10
+  date-released: "2026-10-11"
+  status: preprint
+  publisher:
+    name: Zenodo
+  doi: 10.5281/zenodo.23305697
+  url: "https://doi.org/10.5281/zenodo.23305697"
+  license: CC-BY-4.0
+  notes: "Byline on the paper: John Kruze, with Super Intelligence."

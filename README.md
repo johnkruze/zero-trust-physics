@@ -1,6 +1,6 @@
 # Zero-Trust Physics
 
-Zero-Trust Physics is a physics verifier for Super Intelligence (SI). SI agents ask it questions about real hardware, and every answer comes with a cryptographic proof, so any agent can run it again and get the same thing; when a question goes past what a model was tested for, the answer stops there and says why.
+Zero-Trust Physics is a physics verifier for Super Intelligence (SI). SI agents ask it questions about real hardware, and every answer comes with a cryptographic proof, so any agent can run it again and get the same thing. A model stops at a mathematical or physical limit and names it, and the range it was compared on, and how it did there, is in its description.
 
 ```
 https://mcp.zerotrustphysics.com/mcp

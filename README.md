@@ -21,7 +21,7 @@ Four small programs that check a cryptographic proof with no engine, and example
 - `verify_dataset.py` checks a dataset: the plan hash, every row's chain, state digest, run seal and leaf, the row tree, the dataset seal, the hashes of the rows and the frames, the frame file's header and the head's receipt.
 - `verify_signature.py` checks the engine's signature on any answer, and its receipt.
 
-The seals need Python's standard library and nothing else. Checking the engine's signature (ML-DSA-87, FIPS 204) needs one package, dilithium-py 1.5.1: pure Python, written to FIPS 204 final, not validated under FIPS 140-3, used here only to verify public data. It is imported only when a public key is given.
+The seals need Python's standard library and nothing else. The engine's answers are signed ML-DSA-87 (RustCrypto `ml-dsa` 0.1.1); they are checked here with `dilithium-py` 1.5.1, the one package these programs use, imported only when a public key is given.
 
 ```sh
 pip install dilithium-py==1.5.1

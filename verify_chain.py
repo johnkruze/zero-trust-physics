@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Verify a chain of runs from its saved answers, with no engine.
+"""Verify a chain of runs from its saved answers, with no engine (seal rule v2, SHA-384).
 
-    python3 verify_chain.py first.json second.json [third.json ...]
-    python3 verify_chain.py chain.json
+    python3 verify_chain.py first.json second.json [third.json ...] [signature options]
+    python3 verify_chain.py chain.json [signature options]
+
+    signature options: --public-key <file> --now <YYYY-MM-DDTHH:MM:SSZ> --nonce-ledger <file>
 
 In the first form each file is the text one call to Zero-Trust Physics returned
 (run_trajectory, or verify_step for the last link), kept byte for byte, in
@@ -12,7 +14,8 @@ answer's receipt is verified too.
 
 In the second form the file is {"links": [<answer>, ...]}, the body the
 verify_tape tool takes. The answers are then no longer the bytes that were
-sent, so their receipts are not verified.
+sent, so their receipts are not verified; a signature is still checked on each
+answer's text as it stands in the file.
 
 The rules of a chain, as this script carries them out: every run
 alone, then for each link the upstream seals it names, the upstream outcome (a
@@ -29,8 +32,16 @@ byte. It shows the chain is consistent with itself. To see that the verifier
 gives the same chain, send the last request, with its from, its run_seal and
 its chain_seal, to verify_tape.
 
+Every hash is SHA-384, written as 96 hex digits (a step's seal is
+sha384_seal). The engine's signature on each answer, when there is one, is
+checked as verify_run.py checks it, and its lines carry the answer's place,
+links[0].signature, links[1].signature, ...
+
 Exit code 0: every proof holds. 1: a proof is broken. 2: an input could not be
-read as a chain. Python standard library only; it uses verify_run.py beside it.
+read as a chain; a record of seal rule v1 (SHA-256, engine 0.14.3 and earlier)
+is not read, cause SealRuleNotServed. 5: every seal holds and a signature does
+not. SHA-384 needs Python's standard library only; checking a signature needs
+dilithium-py 1.5.1. It uses verify_run.py and answer_signature.py beside it.
 Released under Apache-2.0.
 """
 import json
@@ -39,7 +50,9 @@ import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from verify_run import receipt, sealed_form, sha256_hex, state_digest, string_text  # noqa: E402
+from verify_run import receipt, result, sealed_form, sha384_hex, state_digest, string_text  # noqa: E402
+from answer_signature import (NotRead as OptionNotRead, SealRuleNotServed, refuse_other_rule,  # noqa: E402
+                              say_not_served, take_options)
 
 MAX_CHAIN_LINKS = 16
 HEX = set("0123456789abcdef")
@@ -79,7 +92,7 @@ def chain_tail(kind, coupling, handed):
 
 
 def chain_seal(upstream_commitment, tail, downstream_seal):
-    return sha256_hex((upstream_commitment + tail + downstream_seal).encode("utf-8"))
+    return sha384_hex((upstream_commitment + tail + downstream_seal).encode("utf-8"))
 
 
 def request_value_hex(value):
@@ -115,12 +128,12 @@ def values_at(request, path):
 def tape_cause(answer, inputs):
     """One run alone: None when it holds, else chain, state or run_seal.
     inputs is the request read with every number as a 64-bit number, so -0 stays -0."""
-    link = sha256_hex(sealed_form(inputs).encode("utf-8"))
+    link = sha384_hex(sealed_form(inputs).encode("utf-8"))
     for frame in answer["frames"]:
         data = bytes.fromhex(frame["frame_hex"])
         if len(data) != 64 or data[48:64] != bytes.fromhex(link)[:16]:
             return "chain"
-        link = sha256_hex(data)
+        link = sha384_hex(data)
         if link != frame["link"]:
             return "chain"
     digest = state_digest(answer)
@@ -129,7 +142,7 @@ def tape_cause(answer, inputs):
     tail = json.dumps({"outcome": answer["outcome"], "steps_landed": answer["steps_landed"],
                        "reject": answer["reject"], "state_digest": digest},
                       separators=(",", ":"), ensure_ascii=False)
-    if sha256_hex((link + tail).encode("utf-8")) != answer["run_seal"]:
+    if sha384_hex((link + tail).encode("utf-8")) != answer["run_seal"]:
         return "run_seal"
     return None
 
@@ -139,12 +152,12 @@ def read_link(index, answer, inputs, last):
         raise NotRead("links[%d] is not a JSON object" % index)
     if not isinstance(inputs, dict) or not isinstance(inputs.get("domain"), str) or not isinstance(inputs.get("card"), str):
         raise NotRead("links[%d].inputs names no card" % index)
-    is_step = "sha256_seal" in answer and "run_seal" not in answer
+    is_step = "sha384_seal" in answer and "run_seal" not in answer
     if is_step and not last:
         raise NotRead("links[%d] must be a run_trajectory answer: only the last link may be a step" % index)
-    key = "sha256_seal" if is_step else "run_seal"
-    if not is_hex(answer.get(key), 64):
-        raise NotRead("links[%d].%s is not 64 lowercase hex digits" % (index, key))
+    key = "sha384_seal" if is_step else "run_seal"
+    if not is_hex(answer.get(key), 96):
+        raise NotRead("links[%d].%s is not 96 lowercase hex digits" % (index, key))
     if is_step:
         state = answer.get("state")
         if not isinstance(state, dict):
@@ -173,10 +186,10 @@ def read_link(index, answer, inputs, last):
         if kind == "coupling" and not (isinstance(coupling, str) and coupling):
             raise NotRead("links[%d].chain.coupling must name the coupling" % index)
         for k in ("upstream_run_seal", "chain_seal"):
-            if not is_hex(chain.get(k), 64):
-                raise NotRead("links[%d].chain.%s is not 64 lowercase hex digits" % (index, k))
-        if "upstream_chain_seal" not in chain or not (chain["upstream_chain_seal"] is None or is_hex(chain["upstream_chain_seal"], 64)):
-            raise NotRead("links[%d].chain.upstream_chain_seal is not null or 64 lowercase hex digits" % index)
+            if not is_hex(chain.get(k), 96):
+                raise NotRead("links[%d].chain.%s is not 96 lowercase hex digits" % (index, k))
+        if "upstream_chain_seal" not in chain or not (chain["upstream_chain_seal"] is None or is_hex(chain["upstream_chain_seal"], 96)):
+            raise NotRead("links[%d].chain.upstream_chain_seal is not null or 96 lowercase hex digits" % index)
         handed = chain.get("handed")
         if not isinstance(handed, list) or not handed:
             raise NotRead("links[%d].chain.handed is not an array of at least one value" % index)
@@ -230,6 +243,11 @@ def verify_links(answers, numbers):
         raise NotRead("a chain is at least two answers")
     if count > MAX_CHAIN_LINKS:
         raise NotRead("a chain is at most 16 answers")
+    for answer in answers:
+        if isinstance(answer, dict):
+            refuse_other_rule(answer)
+            if isinstance(answer.get("chain"), dict):
+                refuse_other_rule(answer["chain"])
     inputs = [n.get("inputs") if isinstance(n, dict) else None for n in numbers]
     links = [read_link(i, a, inputs[i], i + 1 == count) for i, a in enumerate(answers)]
     for i, (link, answer) in enumerate(zip(links, answers)):
@@ -259,7 +277,8 @@ def verify_links(answers, numbers):
 
 
 def load(path):
-    raw = open(path, "rb").read().decode("utf-8")
+    with open(path, "rb") as handle:
+        raw = handle.read().decode("utf-8")
     outer = json.loads(raw)
     if isinstance(outer, dict) and "jsonrpc" in outer:
         raw = outer["result"]["content"][0]["text"]
@@ -268,20 +287,47 @@ def load(path):
     return raw, json.loads(raw), json.loads(raw, parse_int=float)
 
 
-def main(paths):
+def link_texts(raw):
+    """The text of each answer of {"links": [<answer>, ...]} as it stands in the file."""
+    decoder = json.JSONDecoder()
+    at = raw.index("[", raw.index('"links"')) + 1
+    texts = []
+    while True:
+        while raw[at] in " \t\r\n,":
+            at += 1
+        if raw[at] == "]":
+            return texts
+        _, end = decoder.raw_decode(raw, at)
+        texts.append(raw[at:end])
+        at = end
+
+
+def main(arguments):
+    try:
+        paths, given = take_options(arguments)
+    except OptionNotRead as e:
+        print("not read:", e)
+        return 2
+    if not paths:
+        print(__doc__)
+        return 2
     texts = []
     try:
         if len(paths) == 1:
-            _, body, body_numbers = load(paths[0])
+            raw, body, body_numbers = load(paths[0])
             if not isinstance(body, dict) or set(body) != {"links"} or not isinstance(body["links"], list):
                 raise NotRead("one file must be {\"links\": [<answer>, ...]}")
             answers, numbers = body["links"], body_numbers["links"]
+            signed_texts = link_texts(raw)
         else:
             loaded = [load(p) for p in paths]
             texts = [t for t, _, _ in loaded]
             answers = [a for _, a, _ in loaded]
             numbers = [n for _, _, n in loaded]
+            signed_texts = texts
         holds, at, cause, last = verify_links(answers, numbers)
+    except SealRuleNotServed as e:
+        return say_not_served(e)
     except (OSError, ValueError, KeyError, IndexError, TypeError, NotRead) as e:
         print("not read:", e)
         return 2
@@ -294,18 +340,22 @@ def main(paths):
         print("%-14s BROKEN  first break at links[%d]: %s" % ("chain:", at, cause))
         broken.append("chain")
     for i, text in enumerate(texts):
-        given, made = receipt(text)
-        ok = given is not None and given == made
+        given_receipt, made = receipt(text)
+        ok = given_receipt is not None and given_receipt == made
         print("%-14s %s  %s" % ("receipt[%d]:" % i, "holds" if ok else "BROKEN", made))
         if not ok:
             broken.append("receipt[%d]" % i)
-    if answers[-1].get("sha256_seal") and "run_seal" not in answers[-1]:
-        print("note:          the last link is a step; its sha256_seal is shown by sending its request to verify_step again")
-    print("result:", "every proof holds" if not broken else "broken: " + ", ".join(broken))
-    return 0 if not broken else 1
+    if answers[-1].get("sha384_seal") and "run_seal" not in answers[-1]:
+        print("note:          the last link is a step; its sha384_seal is shown by sending its request to verify_step again")
+    signature_fails = False
+    try:
+        for i, text in enumerate(signed_texts):
+            signature_fails |= given.show(given.check(text), "links[%d]" % i)
+    except OptionNotRead as e:
+        print("not read:", e)
+        return 2
+    return result(broken, signature_fails)
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        sys.exit(__doc__)
     sys.exit(main(sys.argv[1:]))

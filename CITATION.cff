@@ -1,7 +1,7 @@
 cff-version: 1.2.0
 message: "If you use Zero-Trust Physics, or anything in this repository, please cite the paper."
 title: "Zero-Trust Physics"
-abstract: "Zero-Trust Physics is a physics verifier for Super Intelligence (SI). SI agents ask it questions about real hardware over the Model Context Protocol, and every answer comes with a cryptographic proof, so any agent can run it again and get the same thing. Past what a model was compared with, it keeps going with the same equations and flags every step. It stops only at a physical limit, or where its equations, constants or tables no longer hold, and it names the reason. The range it was compared on, and how it did there, is in its description. This repository holds three small programs that confirm a cryptographic proof with no engine, and examples of asking."
+abstract: "Zero-Trust Physics is a physics verifier for Super Intelligence (SI). SI agents ask it questions about real hardware over the Model Context Protocol, and every answer comes with a cryptographic proof, so any agent can run it again and get the same thing. Past what a model was compared with, it keeps going with the same equations and flags every step. It stops only at a physical limit, or where its equations, constants or tables no longer hold, and it names the reason. The range it was compared on, and how it did there, is in its description. This repository holds four small programs that confirm a cryptographic proof and the engine's signature with no engine, and examples of asking."
 type: software
 authors:
   - family-names: Kruze

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""Recompute the cryptographic proof of one run from a saved answer, with no engine.
+"""Recompute the cryptographic proof of one run from a saved answer, with no engine (seal rule v2, SHA-384).
 
-    python3 verify_run.py answer.json
+    python3 verify_run.py answer.json [--public-key <file>] [--now <time>] [--nonce-ledger <file>]
 
 answer.json is the text a run_trajectory call to Zero-Trust Physics returned,
 kept byte for byte. It may also be the whole JSON-RPC message of that call; the
@@ -9,24 +9,42 @@ answer's text is then read from result.content[0].text.
 
 The script recomputes link_0 from the request, follows the chain of recorded
 frames, recomputes the state digest, the run seal and the receipt, and prints
-one line for each. Exit code 0: every proof holds. 1: a proof is broken.
-2: the file could not be read as an answer.
+one line for each. Every hash is SHA-384, written as 96 hex digits, under the
+rule the answer names: "seal_rule":"zero-trust-physics/seal/v2".
+
+The engine's signature, when the answer carries one, follows the receipt. It is
+checked with --public-key (the engine's public key, base64), at the clock
+--now (default: this machine's), against the nonces in --nonce-ledger; the
+lines signature, signature_cause, key_id, issued_at, expires_at and nonce say
+what was found (answer_signature.py beside this script holds the rule). With no
+key given a signature is reported and not checked.
+
+Exit code 0: every proof holds. 1: a proof is broken. 2: the file was not read
+as an answer; a record of seal rule v1 (SHA-256, engine 0.14.3 and earlier) is
+not read, cause SealRuleNotServed. 5: every seal holds and the signature does
+not (said before a receipt that does not match).
 
 A run sent with "from" is the run of the same request typed by hand, so this
 script verifies it as any run; its "chain" is verified by verify_chain.py
 beside this script.
 
-The rules are the code below, each in a few lines.
-Python standard library only. Released under Apache-2.0.
+The rules are the code below, each in a few lines. SHA-384 needs Python's
+standard library only; checking a signature needs dilithium-py 1.5.1
+(pip install dilithium-py==1.5.1). Released under Apache-2.0.
 """
 import hashlib
 import json
+import os
 import struct
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from answer_signature import (NotRead, SealRuleNotServed, read_receipt, refuse_other_rule,  # noqa: E402
+                              say_not_served, take_options, OPTIONS_HELP)
 
-def sha256_hex(data: bytes) -> str:
-    return hashlib.sha256(data).hexdigest()
+
+def sha384_hex(data: bytes) -> str:
+    return hashlib.sha384(data).hexdigest()
 
 
 def number_text(x) -> str:
@@ -60,7 +78,7 @@ def sealed_form(value) -> str:
 
 
 def state_digest(answer):
-    """SHA-256 of one line key:value for every _hex key and every boolean of the final
+    """SHA-384 of one line key:value for every _hex key and every boolean of the final
     state, sorted by key, then the two ledger-error lines. Null when no step landed."""
     state = answer["final_state"]
     if not answer["steps_landed"] or state is None:
@@ -78,21 +96,20 @@ def state_digest(answer):
             lines.append("%s:%s\n" % (key, value))
     lines.append("final_residual_conservation_error_hex:%s\n" % answer["final_residual_conservation_error_hex"])
     lines.append("max_residual_conservation_error_hex:%s\n" % answer["max_residual_conservation_error_hex"])
-    return sha256_hex("".join(lines).encode("utf-8"))
+    return sha384_hex("".join(lines).encode("utf-8"))
 
 
 def receipt(text: str):
-    """The hash of the bytes before the tail ,"receipt_sha256":"<64 hex>"} closed with }."""
-    marker = ',"receipt_sha256":"'
-    at = text.rfind(marker)
-    tail = text[at + len(marker):]
-    if at < 0 or len(tail) != 66 or not tail.endswith('"}'):
-        return None, None
-    return tail[:64], sha256_hex((text[:at] + "}").encode("utf-8"))
+    """The receipt the text states and the SHA-384 of the bytes before its tail
+    ,"receipt_sha384":"<96 hex>"} closed with }; the engine's signature after the
+    receipt, when there is one, is taken out first. (None, None) with no receipt."""
+    read = read_receipt(text)
+    return (None, None) if read is None else read
 
 
 def read_answer(path):
-    raw = open(path, "rb").read().decode("utf-8")
+    with open(path, "rb") as handle:
+        raw = handle.read().decode("utf-8")
     # A number is read as the nearest 64-bit number; a whole number too, so -0 stays -0.
     outer = json.loads(raw, parse_int=float)
     if isinstance(outer, dict) and "jsonrpc" in outer:
@@ -100,11 +117,22 @@ def read_answer(path):
     return raw, json.loads(raw, parse_int=float), json.loads(raw)
 
 
-def main(path):
+def main(arguments):
     try:
-        text, answer, plain = read_answer(path)
+        arguments, given = take_options(arguments)
+    except NotRead as e:
+        print("not read:", e)
+        return 2
+    if len(arguments) != 1:
+        print(__doc__ + "\n" + OPTIONS_HELP)
+        return 2
+    try:
+        text, answer, plain = read_answer(arguments[0])
+        refuse_other_rule(plain)
         request = answer["inputs"]
         frames = plain["frames"]
+    except SealRuleNotServed as e:
+        return say_not_served(e)
     except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
         print("not read:", e)
         return 2
@@ -116,7 +144,7 @@ def main(path):
         if not ok:
             broken.append(name)
 
-    link = sha256_hex(sealed_form(request).encode("utf-8"))
+    link = sha384_hex(sealed_form(request).encode("utf-8"))
     print("%-14s %s" % ("link_0:", link))
 
     chain_ok, where = True, ""
@@ -128,7 +156,7 @@ def main(path):
         if data[48:64] != bytes.fromhex(link)[:16]:
             chain_ok, where = False, "proof slot of the frame of step %s" % frame["step"]
             break
-        link = sha256_hex(data)
+        link = sha384_hex(data)
         if link != frame["link"]:
             chain_ok, where = False, "link of the frame of step %s" % frame["step"]
             break
@@ -144,17 +172,35 @@ def main(path):
     tail = json.dumps({"outcome": plain["outcome"], "steps_landed": plain["steps_landed"],
                        "reject": plain["reject"], "state_digest": digest},
                       separators=(",", ":"), ensure_ascii=False)
-    seal = sha256_hex((link + tail).encode("utf-8"))
+    seal = sha384_hex((link + tail).encode("utf-8"))
     report("run_seal", chain_ok and seal == plain["run_seal"], seal)
 
-    given, made = receipt(text)
-    report("receipt", given is not None and given == made, str(made))
+    given_receipt, made = receipt(text)
+    report("receipt", given_receipt is not None and given_receipt == made, str(made))
 
-    print("result:", "every proof holds" if not broken else "broken: " + ", ".join(broken))
-    return 0 if not broken else 1
+    try:
+        signature_fails = given.show(given.check(text))
+    except NotRead as e:
+        print("not read:", e)
+        return 2
+    return result(broken, signature_fails)
+
+
+def result(broken, signature_fails):
+    """The last line and the exit code: 1 for a broken seal, then 5 for a signature that does not
+    hold, then 1 for a receipt that does not match, else 0."""
+    seals = [name for name in broken if not name.startswith("receipt")]
+    if not broken and not signature_fails:
+        print("result: every proof holds")
+        return 0
+    words = "broken: " + ", ".join(broken) if broken else "every seal holds"
+    if signature_fails:
+        words += "; the signature does not hold"
+    print("result:", words)
+    if seals:
+        return 1
+    return 5 if signature_fails else 1
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    sys.exit(main(sys.argv[1]))
+    sys.exit(main(sys.argv[1:]))

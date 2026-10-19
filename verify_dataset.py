@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Verify a dataset of runs with no engine.
+"""Verify a dataset of runs with no engine (seal rule v2, SHA-384).
 
-    python3 verify_dataset.py answer.json    # a run_dataset answer asked with "answer": "full"
-    python3 verify_dataset.py <folder>       # a folder holding head.json, rows.jsonl and frames.bin
+    python3 verify_dataset.py answer.json [signature options]   # a run_dataset answer asked with "answer": "full"
+    python3 verify_dataset.py <folder> [signature options]      # a folder holding head.json, rows.jsonl and frames.bin
+
+    signature options: --public-key <file> --now <YYYY-MM-DDTHH:MM:SSZ> --nonce-ledger <file>
 
 In the first form the file is the text a run_dataset call to Zero-Trust Physics
 returned, kept byte for byte, when the request asked "store": "frames",
@@ -12,44 +14,51 @@ second form the folder holds the same three parts as files.
 
 It verifies the plan hash, the request of every row against a list plan, every
 row's chain of frames, state digest, run seal and leaf, the row tree (RFC 6962),
-the dataset seal, the two hashes of the rows and the frames, and the head's
+the dataset seal, the two hashes of the rows and the frames, the frame file's
+80-byte header (GKF3, layout 2, the counts, the dataset seal), and the head's
 receipt, and prints one line for each. Where the rows are not the plan's rows
 in their places it names the first place that does not hold its own row and
 says whether a row was dropped, repeated, swapped or changed. It also holds
 what no seal covers to what the engine writes: every decimal of a final state
 to the exact value beside it (its _hex), bit for bit, and every _hex to a decimal
 beside it, the keys of each row, and a sentence (reject_detail) on each row that
-did not complete and on no other, which on a run refused part way ends, from
-kernel v0.10.0, with the step it is sealed to.
-Exit code 0: every proof holds. 1: a proof is broken, or a value no seal covers
-is not as the engine writes it. 2: not read.
+did not complete and on no other, which on a run refused part way ends with the
+step it is sealed to.
 
-The leaf of a row is the compact JSON of row, request_sha256, outcome and
-run_seal, and, in a dataset of kernel genesis_kernel_v0.10.0 (engine 0.11.0)
-or later, reject_detail_sha256 last: the SHA-256 of the UTF-8 bytes of the
-row's sentence, or null when it has none. From that kernel on the words of a
-sentence are sealed; before it they are covered by no seal. The kernel is the
-head's engine_version, genesis_kernel_vX.Y.Z, read as three whole numbers: a
-dataset of an earlier kernel is verified by the four-key leaf it was sealed
-with, and a name not of that form by the five-key leaf the engine writes now.
-The line leaf_rule says which leaf was built and why.
+Every hash is SHA-384, written as 96 hex digits, under the rule the head names:
+"seal_rule":"zero-trust-physics/seal/v2". The leaf of a row is the compact JSON
+of row, request_sha384, outcome, run_seal and reject_detail_sha384: the SHA-384
+of the UTF-8 bytes of the row's sentence, or null when it has none. The head's
+signature, when it carries one, follows its receipt, and is checked as
+verify_run.py checks an answer's.
+
+Exit code 0: every proof holds. 1: a proof is broken, or a value no seal covers
+is not as the engine writes it. 2: not read; a record of seal rule v1 (SHA-256,
+engine 0.14.3 and earlier, a GKF2 frame file) is not read, cause
+SealRuleNotServed. 5: every seal holds and the signature does not.
 
 A grid or a sample plan is expanded by rules this script does not hold: for
 those it verifies every proof and says that the rows were not compared with the
 plan. A plan of solves is not read here.
 
-The rules are the code below, each in a few lines. Python standard
-library only; it uses verify_run.py beside it. Released under Apache-2.0.
+The rules are the code below, each in a few lines. SHA-384 needs Python's
+standard library only; checking a signature needs dilithium-py 1.5.1. It uses
+verify_run.py and answer_signature.py beside it. Released under Apache-2.0.
 """
 import hashlib
 import json
 import os
-import re
 import struct
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from verify_run import receipt, sealed_form, sha256_hex, state_digest  # noqa: E402
+from verify_run import receipt, result, sealed_form, sha384_hex, state_digest  # noqa: E402
+from answer_signature import (NotRead, SealRuleNotServed, refuse_other_rule, say_not_served,  # noqa: E402
+                              take_options)
+
+HEADER_LEN = 80
+MAGIC = b"GKF3"
+LAYOUT = 2
 
 
 def split(count):
@@ -64,32 +73,16 @@ def tree_root(leaves):
     if len(leaves) == 1:
         return leaves[0]
     at = split(len(leaves))
-    return hashlib.sha256(b"\x01" + tree_root(leaves[:at]) + tree_root(leaves[at:])).digest()
+    return hashlib.sha384(b"\x01" + tree_root(leaves[:at]) + tree_root(leaves[at:])).digest()
 
 
-FIVE_KEY_KERNEL = (0, 10, 0)
-
-
-def leaf_rule(engine_version):
-    """True when the leaf has five keys, and the words that say why (see the top of this file)."""
-    found = re.fullmatch(r"genesis_kernel_v([0-9]+)\.([0-9]+)\.([0-9]+)", engine_version) if isinstance(engine_version, str) else None
-    if found is None:
-        return True, ("five keys, with reject_detail_sha256: engine_version %s is not of the form "
-                      "genesis_kernel_vX.Y.Z, so the leaf the engine writes now was built" % json.dumps(engine_version))
-    if tuple(int(n) for n in found.groups()) >= FIVE_KEY_KERNEL:
-        return True, "five keys, with reject_detail_sha256: engine_version %s is kernel v0.10.0 (engine 0.11.0) or later" % engine_version
-    return False, ("four keys, no reject_detail_sha256: engine_version %s is a kernel before v0.10.0 (engine 0.11.0), "
-                   "whose leaf does not seal the sentence" % engine_version)
-
-
-def leaf_text(number, request_hash, row, five_keys):
+def leaf_text(number, request_hash, row):
     """The leaf of a row as the engine writes it, or None when the sentence is neither a string nor null."""
-    leaf = {"row": number, "request_sha256": request_hash, "outcome": row["outcome"], "run_seal": row["run_seal"]}
-    if five_keys:
-        sentence = row["reject_detail"]
-        if sentence is not None and not isinstance(sentence, str):
-            return None
-        leaf["reject_detail_sha256"] = None if sentence is None else sha256_hex(sentence.encode("utf-8"))
+    sentence = row["reject_detail"]
+    if sentence is not None and not isinstance(sentence, str):
+        return None
+    leaf = {"row": number, "request_sha384": request_hash, "outcome": row["outcome"], "run_seal": row["run_seal"],
+            "reject_detail_sha384": None if sentence is None else sha384_hex(sentence.encode("utf-8"))}
     return json.dumps(leaf, separators=(",", ":"), ensure_ascii=False)
 
 
@@ -210,20 +203,19 @@ ROW_KEYS = ("row", "request", "outcome", "steps_landed", "reject", "reject_detai
 
 
 def refused_tail(steps_landed):
-    """The last sentence of a run refused part way, as engine 0.11.0 (kernel v0.10.0) writes it."""
+    """The last sentence of a run refused part way, as the engine writes it."""
     if steps_landed == 0:
         return "The run is sealed with no step landed. The state at step 1 was refused and is not sealed."
     return "The run is sealed to step %d. The state at step %d was refused and is not sealed." % (steps_landed, steps_landed + 1)
 
 
-def field_not_written(row, five_keys=False):
+def field_not_written(row):
     """The first field of a row that is not as the engine writes it, or None: a key the engine does
     not write, a value of a final state with no _hex beside it, or a sentence (reject_detail) where
     none is written or none where one is. A run that completed has no sentence; one that ended or was
-    refused, and a request turned away (unadmitted), has one. Before kernel genesis_kernel_v0.10.0
-    no seal covers the sentence and this is its only check; from it the leaf seals the sentence, and
-    this still names a dataset sealed again by hand (no key is needed) with a sentence where the
-    engine writes none, or none where it writes one."""
+    refused, and a request turned away (unadmitted), has one. The leaf seals the sentence; this still
+    names a dataset sealed again by hand (no key is needed) with a sentence where the engine writes
+    none, or none where it writes one."""
     for key in row:
         if key not in ROW_KEYS:
             return "%s is not a key of a row" % json.dumps(key)
@@ -242,18 +234,20 @@ def field_not_written(row, five_keys=False):
         return "a completed run carries a sentence, reject_detail %s" % json.dumps(sentence)
     if row["outcome"] != "completed" and (not isinstance(sentence, str) or not sentence):
         return "a run that is %s carries no sentence: reject_detail is %s" % (row["outcome"], json.dumps(sentence))
-    # From kernel v0.10.0 a refused run's sentence ends with the step it is sealed to. Earlier
-    # versions wrote that sentence in other words, so it is held to this form only there.
+    # A refused run's sentence ends with the step it is sealed to.
     steps = row["steps_landed"] if isinstance(row["steps_landed"], int) else 0
-    if five_keys and row["outcome"] == "refused" and not sentence.endswith(" " + refused_tail(steps)):
+    if row["outcome"] == "refused" and not sentence.endswith(" " + refused_tail(steps)):
         return "a run refused part way ends its sentence with %s" % json.dumps(refused_tail(steps))
     return None
 
 
 def read_folder(folder):
-    head_text = open(os.path.join(folder, "head.json"), encoding="utf-8").read().rstrip("\n")
-    rows_bytes = open(os.path.join(folder, "rows.jsonl"), "rb").read()
-    frames_bytes = open(os.path.join(folder, "frames.bin"), "rb").read()
+    with open(os.path.join(folder, "head.json"), encoding="utf-8") as handle:
+        head_text = handle.read().rstrip("\n")
+    with open(os.path.join(folder, "rows.jsonl"), "rb") as handle:
+        rows_bytes = handle.read()
+    with open(os.path.join(folder, "frames.bin"), "rb") as handle:
+        frames_bytes = handle.read()
     return head_text, rows_bytes, frames_bytes
 
 
@@ -264,7 +258,8 @@ def read_answer(path):
     each row are cut out of the text as they stand, so the receipt and the hash of
     the rows are those of the bytes received. The rows file is each row on its own line.
     """
-    text = open(path, "rb").read().decode("utf-8")
+    with open(path, "rb") as handle:
+        text = handle.read().decode("utf-8")
     outer = json.loads(text)
     if isinstance(outer, dict) and "jsonrpc" in outer:
         text = outer["result"]["content"][0]["text"]
@@ -292,7 +287,28 @@ def read_answer(path):
     return head_text, rows_bytes, bytes.fromhex(frames_hex)
 
 
-def verify(head_text, rows_bytes, frames_bytes):
+def refuse_v1(head_text, rows_bytes, frames_bytes):
+    """Name a dataset of seal rule v1 before any of it is read: its head, a row, or a GKF2 frame file."""
+    refuse_other_rule(json.loads(head_text))
+    for line in rows_bytes.decode("utf-8").splitlines():
+        row = json.loads(line)
+        refuse_other_rule(row)
+        if isinstance(row, dict):
+            refuse_other_rule(row.get("leaf"))
+    if frames_bytes[:4] == b"GKF2":
+        raise SealRuleNotServed("its frame file starts with GKF2")
+
+
+def header_holds(frames_bytes, head):
+    """The 80-byte header: GKF3, layout 2 (u32), rows (u64), frames (u64), dataset_seal (48 bytes), 8 zero bytes."""
+    if len(frames_bytes) < HEADER_LEN:
+        return False
+    magic, layout, rows, frames = frames_bytes[:4], *struct.unpack("<IQQ", frames_bytes[4:24])
+    return (magic == MAGIC and layout == LAYOUT and rows == head["rows"] and frames == head["frames"]
+            and frames_bytes[24:72].hex() == head["dataset_seal"] and frames_bytes[72:80] == bytes(8))
+
+
+def verify(head_text, rows_bytes, frames_bytes, given):
     head_exact = json.loads(head_text, parse_int=float)
     head = json.loads(head_text)
     broken = []
@@ -302,8 +318,8 @@ def verify(head_text, rows_bytes, frames_bytes):
         if not ok:
             broken.append(name)
 
-    plan_hash = sha256_hex(sealed_form(head_exact["request"]).encode("utf-8"))
-    report("plan", plan_hash == head["plan_sha256"], plan_hash)
+    plan_hash = sha384_hex(sealed_form(head_exact["request"]).encode("utf-8"))
+    report("plan", plan_hash == head["plan_sha384"], plan_hash)
 
     plan = head["request"].get("plan", {})
     planned = None
@@ -311,10 +327,8 @@ def verify(head_text, rows_bytes, frames_bytes):
         planned = [dict(run, domain=head["request"]["domain"], card=head["request"]["card"])
                    for run in json.loads(json.dumps(head_exact["request"]["plan"]["runs"]))]
 
-    five_keys, words = leaf_rule(head["engine_version"])
-    print("%-14s %s" % ("leaf_rule:", words))
     planned_forms = None if planned is None else [sealed_form(run) for run in planned]
-    leaves, at, first_break, first_decimal, first_field, read = [], 64, "", "", "", []
+    leaves, at, first_break, first_decimal, first_field, read = [], HEADER_LEN, "", "", "", []
     lines = rows_bytes.decode("utf-8").splitlines()
     for number, line in enumerate(lines):
         row_exact, row = json.loads(line, parse_int=float), json.loads(line)
@@ -324,9 +338,9 @@ def verify(head_text, rows_bytes, frames_bytes):
             found = decimal_not_its_hex(row)
             first_decimal = where + ": " + found if found else ""
         if not first_field:
-            found = field_not_written(row, five_keys)
+            found = field_not_written(row)
             first_field = where + ": " + found if found else ""
-        request_hash = sha256_hex(sealed_form(row_exact["request"]).encode("utf-8"))
+        request_hash = sha384_hex(sealed_form(row_exact["request"]).encode("utf-8"))
         if planned_forms is not None and (number >= len(planned_forms) or planned_forms[number] != read[-1][1]):
             first_break = first_break or where + ": request is not the plan's"
         link = request_hash
@@ -335,7 +349,7 @@ def verify(head_text, rows_bytes, frames_bytes):
             at += 64
             if len(frame) != 64 or frame[48:64] != bytes.fromhex(link)[:16]:
                 first_break = first_break or where + ": chain"
-            link = hashlib.sha256(frame).hexdigest()
+            link = hashlib.sha384(frame).hexdigest()
         if row["frames"] and link != row["last_link"]:
             first_break = first_break or where + ": chain"
         if row["outcome"] != "unadmitted":
@@ -345,14 +359,12 @@ def verify(head_text, rows_bytes, frames_bytes):
             tail = json.dumps({"outcome": row["outcome"], "steps_landed": row["steps_landed"],
                                "reject": row["reject"], "state_digest": digest},
                               separators=(",", ":"), ensure_ascii=False)
-            if sha256_hex((link + tail).encode("utf-8")) != row["run_seal"]:
+            if sha384_hex((link + tail).encode("utf-8")) != row["run_seal"]:
                 first_break = first_break or where + ": run_seal"
-        leaf = leaf_text(number, request_hash, row, five_keys)
+        leaf = leaf_text(number, request_hash, row)
         if json.dumps(row["leaf"], separators=(",", ":"), ensure_ascii=False) != leaf:
-            other = isinstance(row["leaf"], dict) and len(row["leaf"]) == (4 if five_keys else 5)
-            first_break = first_break or where + ": leaf" + (" (it has %d keys, the other leaf rule's)" % len(row["leaf"])
-                                                             if other else "")
-        leaves.append(hashlib.sha256(b"\x00" + (leaf or "").encode("utf-8")).digest())
+            first_break = first_break or where + ": leaf"
+        leaves.append(hashlib.sha384(b"\x00" + (leaf or "").encode("utf-8")).digest())
     if at != len(frames_bytes):
         first_break = first_break or "the frames hold frames no row names"
     # A row out of its place is named as such before any break it causes further on.
@@ -371,32 +383,42 @@ def verify(head_text, rows_bytes, frames_bytes):
     counts = ('{"engine_version":%s,"rows":%d,"completed":%d%s,"refused":%d,"unadmitted":%d,"frames":%d}'
               % (json.dumps(head["engine_version"], ensure_ascii=False), head["rows"], head["completed"],
                  ended, head["refused"], head["unadmitted"], head["frames"]))
-    seal = sha256_hex((head["plan_sha256"] + str(root) + counts).encode("utf-8"))
+    seal = sha384_hex((head["plan_sha384"] + str(root) + counts).encode("utf-8"))
     report("dataset_seal", seal == head["dataset_seal"], seal)
-    report("rows_hash", hashlib.sha256(rows_bytes).hexdigest() == head["rows_sha256"])
-    report("frames_hash", hashlib.sha256(frames_bytes).hexdigest() == head["frames_sha256"]
-           and frames_bytes[:4] == b"GKF2" and frames_bytes[24:56].hex() == head["dataset_seal"])
-    given, made = receipt(head_text)
-    report("receipt", given is not None and given == made, str(made))
-    print("result:", "every proof holds" if not broken else "broken: " + ", ".join(broken))
-    return 0 if not broken else 1
+    report("rows_hash", hashlib.sha384(rows_bytes).hexdigest() == head["rows_sha384"])
+    report("frames_hash", hashlib.sha384(frames_bytes).hexdigest() == head["frames_sha384"])
+    report("frames_header", header_holds(frames_bytes, head),
+           "GKF3, layout 2, the counts of rows and frames and the dataset seal, 80 bytes")
+    given_receipt, made = receipt(head_text)
+    report("receipt", given_receipt is not None and given_receipt == made, str(made))
+    return result(broken, given.show(given.check(head_text)))
 
 
-def main(path):
+def main(arguments):
+    try:
+        arguments, given = take_options(arguments)
+    except NotRead as e:
+        print("not read:", e)
+        return 2
+    if len(arguments) != 1:
+        print(__doc__)
+        return 2
+    path = arguments[0]
     try:
         parts = read_folder(path) if os.path.isdir(path) else read_answer(path)
         json.loads(parts[0])
+        refuse_v1(*parts)
+    except SealRuleNotServed as e:
+        return say_not_served(e)
     except (OSError, ValueError, KeyError, IndexError, TypeError) as e:
         print("not read:", e)
         return 2
     try:
-        return verify(*parts)
-    except (ValueError, KeyError, IndexError, TypeError) as e:
+        return verify(*parts, given)
+    except (ValueError, KeyError, IndexError, TypeError, NotRead) as e:
         print("not read:", e)
         return 2
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 2:
-        sys.exit(__doc__)
-    sys.exit(main(sys.argv[1]))
+    sys.exit(main(sys.argv[1:]))

@@ -13,11 +13,11 @@ one line for each. Every hash is SHA-384, written as 96 hex digits, under the
 rule the answer names: "seal_rule":"zero-trust-physics/seal/v2".
 
 The engine's signature, when the answer carries one, follows the receipt. It is
-checked with --public-key (the engine's public key, base64), at the clock
+verified with --public-key (the engine's public key, base64), at the clock
 --now (default: this machine's), against the nonces in --nonce-ledger; the
 lines signature, signature_cause, key_id, issued_at, expires_at and nonce say
 what was found (answer_signature.py beside this script holds the rule). With no
-key given a signature is reported and not checked.
+key given a signature is reported and not verified.
 
 Exit code 0: every proof holds. 1: a proof is broken. 2: the file was not read
 as an answer; a record of seal rule v1 (SHA-256, engine 0.14.3 and earlier) is
@@ -29,7 +29,7 @@ script verifies it as any run; its "chain" is verified by verify_chain.py
 beside this script.
 
 The rules are the code below, each in a few lines. SHA-384 needs Python's
-standard library only; checking a signature needs dilithium-py 1.5.1
+standard library only; verifying a signature needs dilithium-py 1.5.1
 (pip install dilithium-py==1.5.1). Released under Apache-2.0.
 """
 import hashlib

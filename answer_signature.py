@@ -21,19 +21,18 @@ lines, each ended by a line break:
 signed by ML-DSA-87 (FIPS 204) with an empty context string. key_id is the
 SHA-384 of the 2,592-byte public key.
 
-check() runs the checks in this order and names the first that does not hold:
+check() verifies in this order and names the first that does not hold:
 SignatureMalformed, SignatureAlgorithmNotServed, SignatureKeyNotGiven,
 SignatureKeyMismatch, ReceiptDoesNotMatch, SignatureDoesNotVerify,
 SignatureNotYetValid (issued_at later than the verifier's clock by more than 60 s),
 SignatureExpired (the clock past expires_at), SignatureNonceReplayed (a nonce in
-the verifier's ledger). An unsigned answer checked with a key is SignatureAbsent;
-with no key it is not checked. These are the names and the order of
+the verifier's ledger). An unsigned answer verified with a key is SignatureAbsent;
+with no key it is not verified. These are the names and the order of
 genesis_seal::answer_signature::check, the engine's own.
 
 SHA-384 is Python's hashlib. The ML-DSA-87 equation is dilithium-py 1.5.1
-(pip install dilithium-py==1.5.1): pure Python, written to FIPS 204 final, not
-validated under FIPS 140-3; here it only verifies public data. It is imported
-only when a public key is given.
+(pip install dilithium-py==1.5.1): pure Python, written to FIPS 204 final. It is
+imported only when a public key is given.
 
 Released under Apache-2.0.
 """
@@ -287,7 +286,7 @@ def _ml_dsa_87():
     try:
         from dilithium_py.ml_dsa import ML_DSA_87
     except ImportError:
-        raise NotRead("checking the signature needs dilithium-py 1.5.1, the ML-DSA-87 of FIPS 204 in pure Python: "
+        raise NotRead("verifying the signature needs dilithium-py 1.5.1, the ML-DSA-87 of FIPS 204 in pure Python: "
                       "pip install %s" % LIBRARY)
     return ML_DSA_87
 
@@ -301,9 +300,9 @@ class Report:
 
 
 def check(text, public_key, now_s, seen_nonces=()):
-    """Check the signature of text, the object whose receipt is signed (a whole answer, or a dataset's
+    """Verify the signature of text, the object whose receipt is signed (a whole answer, or a dataset's
     head). public_key: the 2,592 bytes, or None. Returns a Report; its cause is the first name that
-    does not hold, None when every check holds or when nothing was checked."""
+    does not hold, None when every step holds or when nothing was verified."""
     try:
         found = split(text)
     except Malformed:

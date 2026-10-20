@@ -4,13 +4,13 @@
     pip install dilithium-py==1.5.1
     GENESIS_SEAL=<path to the genesis_seal program, 0.7.0 or later> python3 -m unittest discover -s tests -v
 
-What it checks: a v2 run, chain and dataset hold; the signed run in
+What it verifies: a v2 run, chain and dataset hold; the signed run in
 examples/answers holds with its key at a time inside its window; a forged
 signature (another key's value) is SignatureDoesNotVerify; an expired one
 SignatureExpired; a nonce already in the ledger SignatureNonceReplayed; a
 decimal changed after signing ReceiptDoesNotMatch, and with the receipt made
 again SignatureDoesNotVerify; the wrong key SignatureKeyMismatch; an unsigned
-answer checked with a key SignatureAbsent; a record of seal rule v1
+answer verified with a key SignatureAbsent; a record of seal rule v1
 SealRuleNotServed, exit code 2. For every case it runs genesis_seal on the same
 file with the same options and compares the exit code and every signature_cause
 line. Without GENESIS_SEAL the comparisons are skipped and said so.

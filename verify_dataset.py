@@ -29,8 +29,8 @@ Every hash is SHA-384, written as 96 hex digits, under the rule the head names:
 "seal_rule":"zero-trust-physics/seal/v2". The leaf of a row is the compact JSON
 of row, request_sha384, outcome, run_seal and reject_detail_sha384: the SHA-384
 of the UTF-8 bytes of the row's sentence, or null when it has none. The head's
-signature, when it carries one, follows its receipt, and is checked as
-verify_run.py checks an answer's.
+signature, when it carries one, follows its receipt, and is verified as
+verify_run.py verifies an answer's.
 
 Exit code 0: every proof holds. 1: a proof is broken, or a value no seal covers
 is not as the engine writes it. 2: not read; a record of seal rule v1 (SHA-256,
@@ -42,7 +42,7 @@ those it verifies every proof and says that the rows were not compared with the
 plan. A plan of solves is not read here.
 
 The rules are the code below, each in a few lines. SHA-384 needs Python's
-standard library only; checking a signature needs dilithium-py 1.5.1. It uses
+standard library only; verifying a signature needs dilithium-py 1.5.1. It uses
 verify_run.py and answer_signature.py beside it. Released under Apache-2.0.
 """
 import hashlib

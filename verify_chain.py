@@ -14,7 +14,7 @@ answer's receipt is verified too.
 
 In the second form the file is {"links": [<answer>, ...]}, the body the
 verify_tape tool takes. The answers are then no longer the bytes that were
-sent, so their receipts are not verified; a signature is still checked on each
+sent, so their receipts are not verified; a signature is still verified on each
 answer's text as it stands in the file.
 
 The rules of a chain, as this script carries them out: every run
@@ -34,13 +34,13 @@ its chain_seal, to verify_tape.
 
 Every hash is SHA-384, written as 96 hex digits (a step's seal is
 sha384_seal). The engine's signature on each answer, when there is one, is
-checked as verify_run.py checks it, and its lines carry the answer's place,
+verified as verify_run.py verifies it, and its lines carry the answer's place,
 links[0].signature, links[1].signature, ...
 
 Exit code 0: every proof holds. 1: a proof is broken. 2: an input could not be
 read as a chain; a record of seal rule v1 (SHA-256, engine 0.14.3 and earlier)
 is not read, cause SealRuleNotServed. 5: every seal holds and a signature does
-not. SHA-384 needs Python's standard library only; checking a signature needs
+not. SHA-384 needs Python's standard library only; verifying a signature needs
 dilithium-py 1.5.1. It uses verify_run.py and answer_signature.py beside it.
 Released under Apache-2.0.
 """

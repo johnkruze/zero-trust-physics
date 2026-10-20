@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check the engine's signature on any answer, and its receipt, with no engine.
+"""Verify the engine's signature on any answer, and its receipt, with no engine.
 
     python3 verify_signature.py answer.json --public-key <file> [--now <time>] [--nonce-ledger <file>]
 
@@ -11,7 +11,7 @@ bytes; --now is the verifier's clock, YYYY-MM-DDTHH:MM:SSZ (default: this
 machine's, UTC); --nonce-ledger is the file of nonces this verifier has seen,
 one per line, to which a signature that holds adds its own.
 
-It checks, in this order, and names the first that does not hold: the form of
+It verifies, in this order, and names the first that does not hold: the form of
 the signature (SignatureMalformed), its algorithm, ML-DSA-87
 (SignatureAlgorithmNotServed), its key_id against the SHA-384 of the key given
 (SignatureKeyMismatch), the receipt over the bytes before it
@@ -20,16 +20,15 @@ the nonce (SignatureDoesNotVerify), the issue time against the clock, 60 s
 allowed (SignatureNotYetValid), the expiry (SignatureExpired) and the nonce
 against the ledger (SignatureNonceReplayed). An answer with no signature is
 SignatureAbsent. It prints the receipt line and the signature lines as
-genesis_seal verify-signature prints them. It checks no seal other than the
-receipt: verify_run.py, verify_chain.py and verify_dataset.py check those, and
+genesis_seal verify-signature prints them. It verifies no seal other than the
+receipt: verify_run.py, verify_chain.py and verify_dataset.py verify those, and
 take the same options.
 
 Exit code 0: the signature holds. 2: an input was not read. 5: the signature
 does not hold, or the answer carries none.
 
 Needs dilithium-py 1.5.1 (pip install dilithium-py==1.5.1), pure Python,
-written to FIPS 204 final, not validated; used here only to verify public
-data. Uses answer_signature.py beside it. Released under Apache-2.0.
+written to FIPS 204 final. Uses answer_signature.py beside it. Released under Apache-2.0.
 """
 import json
 import os

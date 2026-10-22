@@ -7,7 +7,7 @@
     signature options: --public-key <file> --now <YYYY-MM-DDTHH:MM:SSZ> --nonce-ledger <file>
 
 In the first form each file is the text one call to Zero-Trust Physics returned
-(run_trajectory, or verify_step for the last link), kept byte for byte, in
+(run_trajectory, or verify_step or solve for the last link), kept byte for byte, in
 chain order: the first answer has no "chain", each later one has the "chain"
 it was given. A file may also be the whole JSON-RPC message of that call. Each
 answer's receipt is verified too.
@@ -23,7 +23,16 @@ continuation follows only "completed", a coupling "completed" or "ended"), the
 model of a continuation, every handed value against the upstream's sealed final
 state or request and against the downstream request, every start value of a
 continued run being handed, and the chain seal. The first break is named:
-chain, state, run_seal, upstream, outcome, pieces, handed, chain_seal.
+chain, state, run_seal, solution_seal, upstream, outcome, pieces, handed,
+chain_seal.
+
+The last link may be a solve, handed by a coupling of a card into a solver
+(engine 0.15.1): its solution_seal is recomputed from its answer's values (the
+six seal_parts and the seal, by the engine's rule), a value may be handed from
+frames[*].<slot> (that slot of every recorded frame of the upstream run, a
+32-bit slot widened to 64 bits exactly) and may stand at places k.. of the
+request's array (a "to" ending in [k..]). That the values are the solver's own
+is shown by sending the chain's answers, as links, to verify_tape.
 
 It covers what the seals cover. It does not cover engine_version,
 steps_requested, reject_detail, a frame's step label, the decimal copies, or a
@@ -147,18 +156,78 @@ def tape_cause(answer, inputs):
     return None
 
 
+FRAME_SLOTS = {"t": (0, 8), "pos[0]": (8, 4), "pos[1]": (12, 4), "pos[2]": (16, 4), "vel[0]": (20, 4),
+               "vel[1]": (24, 4), "vel[2]": (28, 4), "force_torque": (32, 4), "residual": (36, 4)}
+SOLUTION_PARTS = ("inputs", "engine_version", "result", "invariants", "field_sha384", "outcome")
+
+
+def hex_lines(section, values):
+    """One <section>.<key>:<hex> line for each key ending in _hex, sorted by key."""
+    if values is None:
+        return ""
+    lines = []
+    for key, value in values.items():
+        if key.endswith("_hex"):
+            if not (isinstance(value, str) or isinstance(value, list)):
+                raise ValueError("%s.%s is not hex" % (section, key))
+            lines.append((key, value if isinstance(value, str) else hex_list(value)))
+    return "".join("%s.%s:%s\n" % (section, key, hex) for key, hex in sorted(lines))
+
+
+def hex_list(value):
+    return value if isinstance(value, str) else "[" + ",".join(hex_list(v) for v in value) + "]"
+
+
+def solution_cause(answer, inputs):
+    """A solve's seal recomputed from its answer: None when it holds, else solution_seal."""
+    try:
+        tail = json.dumps({"outcome": answer["outcome"], "iterations": answer["iterations"], "reject": answer.get("reject")},
+                          separators=(",", ":"), ensure_ascii=False)
+        texts = [sealed_form(inputs), "engine_version:%s\n" % answer["engine_version"],
+                 hex_lines("result", answer.get("result")), hex_lines("invariants", answer.get("invariants")),
+                 answer.get("field_sha384") or "null", tail]
+    except (KeyError, ValueError, TypeError):
+        return "solution_seal"
+    parts = answer.get("seal_parts") or {}
+    for name, text in zip(SOLUTION_PARTS, texts):
+        if parts.get(name) != sha384_hex(text.encode("utf-8")):
+            return "solution_seal"
+    whole = texts[0] + texts[1] + texts[3] + texts[2] + texts[4] + texts[5]
+    return None if sha384_hex(whole.encode("utf-8")) == answer["solution_seal"] else "solution_seal"
+
+
+def frame_values(frames, slot):
+    if slot not in FRAME_SLOTS or not isinstance(frames, list) or not frames:
+        return None
+    at, width = FRAME_SLOTS[slot]
+    out = []
+    for frame in frames:
+        data = bytes.fromhex(frame["frame_hex"])[at:at + width]
+        value = struct.unpack("<d", data)[0] if width == 8 else struct.unpack("<f", data)[0]
+        out.append(struct.pack(">d", value).hex())
+    return out
+
+
 def read_link(index, answer, inputs, last):
     if not isinstance(answer, dict):
         raise NotRead("links[%d] is not a JSON object" % index)
-    if not isinstance(inputs, dict) or not isinstance(inputs.get("domain"), str) or not isinstance(inputs.get("card"), str):
+    is_solve = isinstance(inputs, dict) and isinstance(inputs.get("solver"), str) and "solution_seal" in answer
+    if is_solve and (not last or index == 0):
+        raise NotRead("links[%d] must be a run_trajectory answer: only the last link may be a solve" % index)
+    if not is_solve and (not isinstance(inputs, dict) or not isinstance(inputs.get("domain"), str) or not isinstance(inputs.get("card"), str)):
         raise NotRead("links[%d].inputs names no card" % index)
-    is_step = "sha384_seal" in answer and "run_seal" not in answer
+    if is_solve:
+        if not is_hex(answer.get("solution_seal"), 96) or not isinstance(answer.get("outcome"), str):
+            raise NotRead("links[%d].solution_seal is not 96 lowercase hex digits, or outcome is missing" % index)
+    is_step = not is_solve and "sha384_seal" in answer and "run_seal" not in answer
     if is_step and not last:
         raise NotRead("links[%d] must be a run_trajectory answer: only the last link may be a step" % index)
-    key = "sha384_seal" if is_step else "run_seal"
+    key = "solution_seal" if is_solve else ("sha384_seal" if is_step else "run_seal")
     if not is_hex(answer.get(key), 96):
         raise NotRead("links[%d].%s is not 96 lowercase hex digits" % (index, key))
-    if is_step:
+    if is_solve:
+        state, outcome = None, answer["outcome"]
+    elif is_step:
         state = answer.get("state")
         if not isinstance(state, dict):
             raise NotRead("links[%d].state is not a JSON object" % index)
@@ -198,7 +267,8 @@ def read_link(index, answer, inputs, last):
                     or not isinstance(h["from"], str) or not isinstance(h["to"], str)
                     or not (h["unit"] is None or isinstance(h["unit"], str)) or not is_hex_value(h["value_hex"])):
                 raise NotRead("links[%d].chain.handed[%d] is not {from, to, unit, value_hex}" % (index, at))
-    return {"is_step": is_step, "pair": (inputs["domain"], inputs["card"]), "inputs": inputs,
+    pair = ("solver", inputs["solver"]) if is_solve else (inputs["domain"], inputs["card"])
+    return {"is_step": is_step, "is_solve": is_solve, "pair": pair, "inputs": inputs, "frames": answer.get("frames"),
             "outcome": outcome, "seal": answer[key], "state": state, "chain": chain}
 
 
@@ -210,6 +280,9 @@ def handed_hold(up, link):
         if h["from"].startswith("final_state."):
             if state.get(h["from"][len("final_state."):] + "_hex") != h["value_hex"]:
                 return False
+        elif h["from"].startswith("frames[*]."):
+            if chain["kind"] != "coupling" or frame_values(up["frames"], h["from"][len("frames[*]."):]) != h["value_hex"]:
+                return False
         elif h["from"].startswith("inputs."):
             try:
                 values = values_at(up["inputs"], h["from"][len("inputs."):])
@@ -219,6 +292,21 @@ def handed_hold(up, link):
                 return False
         else:
             return False
+        if h["to"].endswith("..]") and "[" in h["to"]:
+            # An array handed to places first.. of the request's array.
+            path, first = h["to"][:h["to"].rindex("[")], h["to"][h["to"].rindex("[") + 1:-3]
+            if not first.isdigit() or not isinstance(h["value_hex"], list):
+                return False
+            try:
+                array = values_at(link["inputs"], path)[0]
+            except KeyError:
+                return False
+            first = int(first)
+            if not isinstance(array, list) or len(array) < first + len(h["value_hex"]):
+                return False
+            if [request_value_hex(v) for v in array[first:first + len(h["value_hex"])]] != h["value_hex"]:
+                return False
+            continue
         try:
             values = values_at(link["inputs"], h["to"])
         except KeyError:
@@ -253,6 +341,11 @@ def verify_links(answers, numbers):
     for i, (link, answer) in enumerate(zip(links, answers)):
         if link["is_step"]:
             continue
+        if link["is_solve"]:
+            cause = solution_cause(answer, link["inputs"])
+            if cause:
+                return False, i, cause, None
+            continue
         cause = tape_cause(answer, link["inputs"])
         if cause:
             return False, i, cause, None
@@ -265,7 +358,7 @@ def verify_links(answers, numbers):
         admitted = up["outcome"] == "completed" or (chain["kind"] == "coupling" and up["outcome"] == "ended")
         if not admitted or up["state"] is None:
             return False, i, "outcome", None
-        if chain["kind"] == "continuation" and up["pair"] != link["pair"]:
+        if chain["kind"] == "continuation" and (up["pair"] != link["pair"] or link["is_solve"]):
             return False, i, "pieces", None
         if not handed_hold(up, link):
             return False, i, "handed", None
@@ -347,6 +440,8 @@ def main(arguments):
             broken.append("receipt[%d]" % i)
     if answers[-1].get("sha384_seal") and "run_seal" not in answers[-1]:
         print("note:          the last link is a step; its sha384_seal is shown by sending its request to verify_step again")
+    if isinstance(answers[-1].get("inputs"), dict) and "solver" in answers[-1]["inputs"]:
+        print("note:          the last link is a solve; its solution_seal is recomputed from its values, which verify_tape given these links shows are the solver's own")
     signature_fails = False
     try:
         for i, text in enumerate(signed_texts):

@@ -17,7 +17,7 @@ Open to any agent.
 Four small programs that verify a cryptographic proof with no engine, and examples of asking. They read seal rule v2 (`"seal_rule":"zero-trust-physics/seal/v2"`): every hash is SHA-384, written as 96 hex digits, the row tree is RFC 6962 with SHA-384, and a dataset's frame file starts with an 80-byte header (`GKF3`, layout 2).
 
 - `verify_run.py` recomputes a run's proof: `link_0` from the request, the chain of frames, the state digest, the run seal and the receipt.
-- `verify_chain.py` does that for each run of a chain, then verifies each link against the run before it and every chain seal.
+- `verify_chain.py` does that for each run of a chain, then verifies each link against the run before it and every chain seal. The last link may be a solve handed a model's run by a coupling (engine 0.15.1), such as the Stardust entry into the PICA heat shield: its `solution_seal` is recomputed from its seal parts and the chain seal over it.
 - `verify_dataset.py` verifies a dataset: the plan hash, every row's chain, state digest, run seal and leaf, the row tree, the dataset seal, the hashes of the rows and the frames, the frame file's header and the head's receipt.
 - `verify_signature.py` verifies the engine's signature on any answer, and its receipt.
 

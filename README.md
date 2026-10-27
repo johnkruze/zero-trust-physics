@@ -100,7 +100,7 @@ A record of seal rule v1 (SHA-256, engine 0.14.3 and earlier) is not read: it is
 
 - The site: https://zerotrustphysics.com
 - A page for each real thing: https://zerotrustphysics.com/things/
-- The paper: https://doi.org/10.5281/zenodo.23305697
+- The paper, version 2.0: https://doi.org/10.5281/zenodo.23517223
 - The engine's own source: https://github.com/johnkruze/zero-trust-physics-engine
 - John Kruze: kruze@zerotrustphysics.com · 928-264-7883
 

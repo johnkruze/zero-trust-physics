@@ -21,18 +21,19 @@ keywords:
   - validation against measurement
 preferred-citation:
   type: article
-  title: "Zero-Trust Physics: a verifier for the physical answers of Super Intelligence"
+  title: "Zero-Trust Physics: deterministic verification, validation and post-quantum attestation for physical superintelligence"
   authors:
     - family-names: Kruze
       given-names: John
       affiliation: Protocol Company
   year: 2026
   month: 10
-  date-released: "2026-10-11"
+  date-released: "2026-10-20"
+  version: "2.0"
   status: preprint
   publisher:
     name: Zenodo
-  doi: 10.5281/zenodo.23305697
-  url: "https://doi.org/10.5281/zenodo.23305697"
+  doi: 10.5281/zenodo.23517223
+  url: "https://doi.org/10.5281/zenodo.23517223"
   license: CC-BY-4.0
   notes: "Byline on the paper: John Kruze, with Super Intelligence."

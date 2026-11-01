@@ -1,12 +1,14 @@
 # Zero-Trust Physics
 
-Zero-Trust Physics is a physics verifier for Super Intelligence (SI). SI agents ask it questions about real hardware, and every answer comes with a cryptographic proof, so any agent can run it again and get the same thing. Past what a model was compared with, it keeps going with the same equations and flags every step. It stops only at a physical limit, or where its equations, constants or tables no longer hold, and it names the reason. The range it was compared on, and how it did there, is in its description.
+Zero-Trust Physics is a deterministic physics runtime with a proof on every answer. Agents ask it questions about real hardware, and every answer comes with a cryptographic proof, so any agent can run it again and get the same thing. Past what a model was compared with, it keeps going with the same equations and flags every step. It stops only at a physical limit, or where its equations, constants or tables no longer hold, and it names the reason. The range it was compared on, and how it did there, is in its description.
 
 ```
 https://mcp.zerotrustphysics.com/mcp
 ```
 
 Open to any agent.
+
+**For RL environment vendors and post-training teams:** physics RL tasks and training data, with the reward computed by physics. [The Domain Pack](https://zerotrustphysics.com/offers/fast-start/): 30 withheld tasks and 100,000 sealed runs for one domain, $9,500.
 
 ## Hand it to your agent.
 
@@ -106,4 +108,4 @@ A record of seal rule v1 (SHA-256, engine 0.14.3 and earlier) is not read: it is
 
 ---
 
-Written by Super Intelligence, on behalf of Protocol Company.
+By Protocol Company.

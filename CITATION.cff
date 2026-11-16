@@ -1,0 +1,38 @@
+cff-version: 1.2.0
+message: "If you use Zero-Trust Physics, or anything in this repository, please cite the paper."
+title: "Zero-Trust Physics"
+abstract: "Zero-Trust Physics is a deterministic physics runtime with a cryptographic proof on every answer. Past what a model was compared with, it keeps going with the same equations and flags every step; it stops only at a physical limit, or where its equations, constants or tables no longer hold, and it names the reason. This repository holds standalone Python programs that verify SHA-384 seals and ML-DSA-87 receipt signatures offline with no engine, and examples of querying the open MCP endpoint."
+type: software
+authors:
+  - family-names: Kruze
+    given-names: John
+    affiliation: Protocol Company
+    email: kruze@zerotrustphysics.com
+url: "https://zerotrustphysics.com"
+repository-code: "https://github.com/johnkruze/zero-trust-physics"
+license: Apache-2.0
+keywords:
+  - Zero-Trust Physics
+  - deterministic physics
+  - RLVR
+  - physics verifier
+  - Model Context Protocol
+  - cryptographic proof
+  - validation against measurement
+preferred-citation:
+  type: article
+  title: "Zero-Trust Physics: deterministic verification, validation and post-quantum attestation for physical superintelligence"
+  authors:
+    - family-names: Kruze
+      given-names: John
+      affiliation: Protocol Company
+  year: 2026
+  month: 10
+  date-released: "2026-10-20"
+  version: "2.0"
+  status: preprint
+  publisher:
+    name: Zenodo
+  doi: 10.5281/zenodo.23517223
+  url: "https://doi.org/10.5281/zenodo.23517223"
+  license: CC-BY-4.0

@@ -9,7 +9,7 @@ https://mcp.zerotrustphysics.com/mcp
 Open to any agent (`v0.15.3`: **61 models** — 36 cards + 25 field solvers, **46 validated against measurement**).
 
 **For RL environment vendors and post-training labs:** deterministic multi-step physics RLVR tasks (`Harbor`, `HUD`, `Inspect`, `MCP`) and sealed SFT trajectories, scored by recomputation with zero LLM judge (`0 of 2,481` adversarial cheat attempts scored above `0` across all five packs):
-- **[Air-Gapped Domain Packs ($9,500 per domain · $39,500 All-Five Bundle)](https://zerotrustphysics.com/offers/fast-start/):** 30 withheld calibrated tasks + 100,000 sealed runs + static `--network none` offline runtime & verifier per domain ([custom suites & engine licensing](https://zerotrustphysics.com/offers/)).
+- **[Air-Gapped Domain Packs ($9,500 per domain · $39,500 All-Five Bundle)](https://zerotrustphysics.com/offers/fast-start/):** 30 withheld calibrated tasks + 100,000 sealed runs + static `--network none` offline runtime & verifier per domain ([custom suites & engine licensing](https://zerotrustphysics.com/offers/fast-start/)).
 - **Free 5-task evaluation samples on Hugging Face (`sh sample/verify_sample.sh` -> `SAMPLE HOLDS`):** [Group 1 (Batteries & Grid)](https://huggingface.co/datasets/zero-trust-physics/zero-trust-physics-sample-group-1) · [Group 2 (Orbital & Entry)](https://huggingface.co/datasets/zero-trust-physics/zero-trust-physics-sample-group-2) · [Group 3 (Fluids & Contact)](https://huggingface.co/datasets/zero-trust-physics/zero-trust-physics-sample-group-3) · [Group 4 (Materials & RF)](https://huggingface.co/datasets/zero-trust-physics/zero-trust-physics-sample-group-4) · [Group 5 (Nuclear & Fusion)](https://huggingface.co/datasets/zero-trust-physics/zero-trust-physics-sample-group-5)
 
 ## Hand it to your agent.
@@ -102,7 +102,7 @@ A record of seal rule v1 (SHA-256, engine 0.14.3 and earlier) is not read: it is
 
 ## Where the rest is
 
-- Website & commercial offers: https://zerotrustphysics.com · https://zerotrustphysics.com/offers/ · https://zerotrustphysics.com/llms.txt
+- Website & commercial offers: https://zerotrustphysics.com · https://zerotrustphysics.com/offers/fast-start/ · https://zerotrustphysics.com/llms.txt
 - Self-serve RLVR Domain Packs ($9,500) & All-Five Bundle ($39,500): https://zerotrustphysics.com/offers/fast-start/
 - Hugging Face organization (5 free sample packs, benchmarks & sealed datasets): https://huggingface.co/zero-trust-physics
 - Real-hardware model index: https://zerotrustphysics.com/systems/

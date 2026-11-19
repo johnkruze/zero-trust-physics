@@ -1,5 +1,7 @@
 # Zero-Trust Physics
 
+> **Archived 18 November 2026.** This repository is read-only and takes no further changes. New work from Protocol Company is published on Hugging Face: https://huggingface.co/zero-trust-physics
+
 Zero-Trust Physics is a deterministic physics runtime with a proof on every answer. Agents ask it questions about real hardware, and every answer comes with a cryptographic proof, so any agent can run it again and get the same thing. Past what a model was compared with, it keeps going with the same equations and flags every step. It stops only at a physical limit, or where its equations, constants or tables no longer hold, and it names the reason. The range it was compared on, and how it did there, is in its description.
 
 ```
@@ -107,7 +109,7 @@ A record of seal rule v1 (SHA-256, engine 0.14.3 and earlier) is not read: it is
 - Hugging Face organization (5 free sample packs, benchmarks & sealed datasets): https://huggingface.co/zero-trust-physics
 - Real-hardware model index: https://zerotrustphysics.com/systems/
 - Paper (version 2.0): https://doi.org/10.5281/zenodo.23517223
-- Rust physics & proof engine source (`v0.15.2`, Apache-2.0; NDA audit available for pack verifiers): https://github.com/johnkruze/zero-trust-physics-engine
+- Rust physics & proof engine source (`v0.15.3`, Apache-2.0; NDA audit available for pack verifiers): https://github.com/johnkruze/zero-trust-physics-engine
 - John Kruze, CEO: kruze@zerotrustphysics.com · [WhatsApp +1 928-264-7883](https://wa.me/19282647883)
 
 ---
